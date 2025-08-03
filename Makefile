@@ -44,6 +44,18 @@ fmt:
 lint:
 	tflint
 
+# Security scan (requires tfsec)
+security:
+	tfsec
+
+# Checkov security scan (requires checkov)
+checkov:
+	checkov -d .
+
+# Run all security scans
+security-scan: security checkov
+	@echo "Security scans completed"
+
 # Run Terraform tests
 test:
 	cd test && terraform test
@@ -66,7 +78,7 @@ install-deps:
 	fi
 
 # Check code quality
-check: fmt lint validate
+check: fmt lint validate security-scan
 	@echo "Code quality checks completed"
 
 # Prepare for release

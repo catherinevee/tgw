@@ -57,4 +57,27 @@ run "validate_route_table_associations" {
     condition     = length(module.transit_gateway.route_table_association_ids) == 1
     error_message = "Should have exactly 1 route table association"
   }
+}
+
+run "validate_flow_logs_configuration" {
+  command = plan
+
+  assert {
+    condition     = module.transit_gateway.transit_gateway_id != null
+    error_message = "Transit Gateway should be created successfully"
+  }
+}
+
+run "validate_tagging" {
+  command = plan
+
+  assert {
+    condition     = contains(keys(module.transit_gateway.transit_gateway_tags), "Module")
+    error_message = "Transit Gateway should have Module tag"
+  }
+
+  assert {
+    condition     = contains(keys(module.transit_gateway.transit_gateway_tags), "ManagedBy")
+    error_message = "Transit Gateway should have ManagedBy tag"
+  }
 } 

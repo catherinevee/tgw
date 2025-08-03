@@ -2,11 +2,11 @@
 # This example creates a Transit Gateway with VPC attachments and custom route tables
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.13.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.2.0"
     }
   }
 }
@@ -79,32 +79,28 @@ resource "aws_subnet" "vpc2_subnet2" {
 module "transit_gateway" {
   source = "../../"
 
-  tgw_name = "advanced-transit-gateway"
+  name = "advanced-transit-gateway"
   description = "Advanced Transit Gateway with VPC attachments and route tables"
   
-  # Enable route tables
-  create_route_tables = true
-  
   # Create custom route tables
-  route_tables = [
-    {
+  route_tables = {
+    shared_routes = {
       name = "shared-routes"
       tags = {
         Purpose = "shared-services"
       }
-    },
-    {
+    }
+    isolated_routes = {
       name = "isolated-routes"
       tags = {
         Purpose = "isolated-workloads"
       }
     }
-  ]
+  }
   
   # Create VPC attachments
-  vpc_attachments = [
-    {
-      name = "vpc1-attachment"
+  vpc_attachments = {
+    vpc1_attachment = {
       vpc_id = aws_vpc.vpc1.id
       subnet_ids = [aws_subnet.vpc1_subnet1.id, aws_subnet.vpc1_subnet2.id]
       appliance_mode_support = "enable"
@@ -116,9 +112,8 @@ module "transit_gateway" {
         VPC = "vpc-1"
         Purpose = "shared-services"
       }
-    },
-    {
-      name = "vpc2-attachment"
+    }
+    vpc2_attachment = {
       vpc_id = aws_vpc.vpc2.id
       subnet_ids = [aws_subnet.vpc2_subnet1.id, aws_subnet.vpc2_subnet2.id]
       appliance_mode_support = "enable"
@@ -131,33 +126,27 @@ module "transit_gateway" {
         Purpose = "isolated-workloads"
       }
     }
-  ]
+  }
   
   # Create route table associations
-  route_table_associations = [
-    {
-      transit_gateway_attachment_id = "vpc1-attachment"
-      transit_gateway_route_table_id = "shared-routes"
-    },
-    {
-      transit_gateway_attachment_id = "vpc2-attachment"
-      transit_gateway_route_table_id = "isolated-routes"
-    }
-  ]
+  route_table_associations = {
+    vpc1_attachment = "shared_routes"
+    vpc2_attachment = "isolated_routes"
+  }
   
   # Create routes
-  routes = [
-    {
+  routes = {
+    vpc1_route = {
       destination_cidr_block = "10.1.0.0/16"
-      transit_gateway_attachment_id = "vpc1-attachment"
-      transit_gateway_route_table_id = "shared-routes"
-    },
-    {
-      destination_cidr_block = "10.2.0.0/16"
-      transit_gateway_attachment_id = "vpc2-attachment"
-      transit_gateway_route_table_id = "isolated-routes"
+      transit_gateway_attachment_id = "vpc1_attachment"
+      transit_gateway_route_table_id = "shared_routes"
     }
-  ]
+    vpc2_route = {
+      destination_cidr_block = "10.2.0.0/16"
+      transit_gateway_attachment_id = "vpc2_attachment"
+      transit_gateway_route_table_id = "isolated_routes"
+    }
+  }
   
   # Tags
   tags = {

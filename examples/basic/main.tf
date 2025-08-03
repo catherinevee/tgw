@@ -2,11 +2,11 @@
 # This example creates a simple Transit Gateway with basic configuration
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.13.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.2.0"
     }
   }
 }
@@ -19,7 +19,7 @@ provider "aws" {
 module "transit_gateway" {
   source = "../../"
 
-  tgw_name = "basic-transit-gateway"
+  name = "basic-transit-gateway"
   description = "Basic Transit Gateway for demonstration"
   
   # Basic configuration
