@@ -1,111 +1,74 @@
 # Makefile for Terraform Transit Gateway Module operations
 # Usage: make <target>
 
-.PHONY: help init plan apply destroy fmt validate lint clean test
+.PHONY: help init plan apply destroy validate fmt lint test clean
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  init      - Initialize Terraform"
-	@echo "  plan      - Create Terraform plan"
-	@echo "  apply     - Apply Terraform changes"
-	@echo "  destroy   - Destroy Terraform resources"
-	@echo "  fmt       - Format Terraform code"
-	@echo "  validate  - Validate Terraform configuration"
-	@echo "  lint      - Run TFLint"
-	@echo "  clean     - Clean up Terraform files"
-	@echo "  test      - Run tests"
+	@echo "  init     - Initialize Terraform"
+	@echo "  plan     - Plan Terraform changes"
+	@echo "  apply    - Apply Terraform changes"
+	@echo "  destroy  - Destroy Terraform resources"
+	@echo "  validate - Validate Terraform configuration"
+	@echo "  fmt      - Format Terraform code"
+	@echo "  lint     - Lint Terraform code"
+	@echo "  test     - Run Terraform tests"
+	@echo "  clean    - Clean up temporary files"
 
 # Initialize Terraform
 init:
-	@echo "Initializing Terraform..."
 	terraform init
-	@echo "Terraform initialized successfully!"
 
-# Create Terraform plan
+# Plan Terraform changes
 plan:
-	@echo "Creating Terraform plan..."
-	terraform plan -out=tfplan
-	@echo "Plan created successfully!"
+	terraform plan
 
 # Apply Terraform changes
 apply:
-	@echo "Applying Terraform changes..."
-	terraform apply tfplan
-	@echo "Changes applied successfully!"
+	terraform apply
 
 # Destroy Terraform resources
 destroy:
-	@echo "Destroying Terraform resources..."
-	terraform destroy -auto-approve
-	@echo "Resources destroyed successfully!"
-
-# Format Terraform code
-fmt:
-	@echo "Formatting Terraform code..."
-	terraform fmt -recursive
-	@echo "Code formatted successfully!"
+	terraform destroy
 
 # Validate Terraform configuration
 validate:
-	@echo "Validating Terraform configuration..."
 	terraform validate
-	@echo "Configuration is valid!"
 
-# Run TFLint
+# Format Terraform code
+fmt:
+	terraform fmt -recursive
+
+# Lint Terraform code (requires tflint)
 lint:
-	@echo "Running TFLint..."
-	tflint --init
 	tflint
-	@echo "Linting completed!"
 
-# Clean up Terraform files
+# Run Terraform tests
+test:
+	cd test && terraform test
+
+# Clean up temporary files
 clean:
-	@echo "Cleaning up Terraform files..."
 	rm -rf .terraform
-	rm -f .terraform.lock.hcl
-	rm -f tfplan
-	rm -f *.tfstate
-	rm -f *.tfstate.backup
-	@echo "Cleanup completed!"
+	rm -rf .terraform.lock.hcl
+	rm -rf terraform.tfstate*
+	rm -rf test/.terraform
+	rm -rf test/.terraform.lock.hcl
+	rm -rf test/terraform.tfstate*
 
-# Run tests
-test: validate lint
-	@echo "Running tests..."
-	cd test && terraform init
-	cd test && terraform plan -detailed-exitcode
-	@echo "Tests completed!"
+# Install development dependencies
+install-deps:
+	@echo "Installing development dependencies..."
+	@if ! command -v tflint >/dev/null 2>&1; then \
+		echo "Installing tflint..."; \
+		curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash; \
+	fi
 
-# Development workflow
-dev: fmt validate lint
-	@echo "Development checks completed!"
+# Check code quality
+check: fmt lint validate
+	@echo "Code quality checks completed"
 
-# Production workflow
-prod: fmt validate lint test
-	@echo "Production checks completed!"
-
-# Install dependencies
-install:
-	@echo "Installing dependencies..."
-	curl -sSLo ~/.local/bin/tflint https://github.com/terraform-linters/tflint/releases/latest/download/tflint_linux_amd64
-	chmod +x ~/.local/bin/tflint
-	@echo "Dependencies installed successfully!"
-
-# Show current workspace
-workspace:
-	@echo "Current workspace: $(shell terraform workspace show)"
-
-# List workspaces
-workspaces:
-	@echo "Available workspaces:"
-	@terraform workspace list
-
-# Create new workspace
-workspace-new:
-	@read -p "Enter workspace name: " name; \
-	terraform workspace new $$name
-
-# Switch workspace
-workspace-switch:
-	@read -p "Enter workspace name: " name; \
-	terraform workspace select $$name 
+# Prepare for release
+release: check test
+	@echo "Release preparation completed" 

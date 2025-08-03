@@ -1,181 +1,225 @@
-# Custom Transit Gateway Module using AWS Provider
-# Based on HashiCorp AWS Provider resources
+# Data Sources
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+# Local Values
+locals {
+  # Common tags for all resources
+  common_tags = merge(var.tags, {
+    Module    = "terraform-aws-tgw"
+    ManagedBy = "terraform"
+  })
+
+  # Transit Gateway tags
+  transit_gateway_tags = merge(local.common_tags, {
+    Name = var.name
+  })
+}
 
 # Transit Gateway
 resource "aws_ec2_transit_gateway" "main" {
-  count = var.create_tgw ? 1 : 0
+  description = var.description
 
-  description                     = var.description
   amazon_side_asn                 = var.amazon_side_asn
   auto_accept_shared_attachments  = var.auto_accept_shared_attachments
   default_route_table_association = var.default_route_table_association
   default_route_table_propagation = var.default_route_table_propagation
   dns_support                     = var.dns_support
-  multicast_support               = var.multicast_support
-  transit_gateway_cidr_blocks     = var.transit_gateway_cidr_blocks
   vpn_ecmp_support                = var.vpn_ecmp_support
+  multicast_support               = var.multicast_support
 
-  tags = merge(
-    {
-      Name = var.tgw_name
-    },
-    var.tags
-  )
+  tags = local.transit_gateway_tags
 
   lifecycle {
-    create_before_destroy = true
+    prevent_destroy = true
   }
 }
 
-# Transit Gateway Route Tables
-resource "aws_ec2_transit_gateway_route_table" "main" {
-  count = var.create_tgw && var.create_route_tables ? length(var.route_tables) : 0
+# VPC Attachments
+resource "aws_ec2_transit_gateway_vpc_attachment" "vpc_attachments" {
+  for_each = var.vpc_attachments
 
-  transit_gateway_id = aws_ec2_transit_gateway.main[0].id
-  tags = merge(
-    {
-      Name = var.route_tables[count.index].name
-    },
-    var.route_tables[count.index].tags,
-    var.tags
-  )
+  transit_gateway_id = aws_ec2_transit_gateway.main.id
+  vpc_id             = each.value.vpc_id
+  subnet_ids         = each.value.subnet_ids
+
+  dns_support                = each.value.dns_support
+  ipv6_support               = each.value.ipv6_support
+  appliance_mode_support     = each.value.appliance_mode_support
+
+  transit_gateway_default_route_table_association = each.value.transit_gateway_default_route_table_association
+  transit_gateway_default_route_table_propagation  = each.value.transit_gateway_default_route_table_propagation
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-vpc-attachment-${each.key}"
+  }, each.value.tags)
+
+  depends_on = [aws_ec2_transit_gateway.main]
 }
 
-# Transit Gateway VPC Attachments
-resource "aws_ec2_transit_gateway_vpc_attachment" "main" {
-  count = var.create_tgw ? length(var.vpc_attachments) : 0
+# Custom Route Tables
+resource "aws_ec2_transit_gateway_route_table" "custom_route_tables" {
+  for_each = var.route_tables
 
-  transit_gateway_id = aws_ec2_transit_gateway.main[0].id
-  vpc_id             = var.vpc_attachments[count.index].vpc_id
-  subnet_ids         = var.vpc_attachments[count.index].subnet_ids
+  transit_gateway_id = aws_ec2_transit_gateway.main.id
 
-  appliance_mode_support                          = var.vpc_attachments[count.index].appliance_mode_support
-  dns_support                                     = var.vpc_attachments[count.index].dns_support
-  ipv6_support                                    = var.vpc_attachments[count.index].ipv6_support
-  transit_gateway_default_route_table_association = var.vpc_attachments[count.index].transit_gateway_default_route_table_association
-  transit_gateway_default_route_table_propagation = var.vpc_attachments[count.index].transit_gateway_default_route_table_propagation
+  tags = merge(local.common_tags, {
+    Name = each.value.name
+  }, each.value.tags)
 
-  tags = merge(
-    {
-      Name = var.vpc_attachments[count.index].name
-    },
-    var.vpc_attachments[count.index].tags,
-    var.tags
-  )
+  depends_on = [aws_ec2_transit_gateway.main]
 }
 
-# Transit Gateway VPN Attachments
-resource "aws_ec2_transit_gateway_vpn_attachment" "main" {
-  count = var.create_tgw ? length(var.vpn_attachments) : 0
+# Route Table Associations
+resource "aws_ec2_transit_gateway_route_table_association" "custom_associations" {
+  for_each = var.route_table_associations
 
-  transit_gateway_id = aws_ec2_transit_gateway.main[0].id
-  vpn_connection_id  = var.vpn_attachments[count.index].vpn_connection_id
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.vpc_attachments[each.key].id
+  transit_gateway_route_table_id = each.value == "main" ? aws_ec2_transit_gateway.main.association_default_route_table_id : aws_ec2_transit_gateway_route_table.custom_route_tables[each.value].id
 
-  tags = merge(
-    {
-      Name = var.vpn_attachments[count.index].name
-    },
-    var.vpn_attachments[count.index].tags,
-    var.tags
-  )
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.vpc_attachments,
+    aws_ec2_transit_gateway_route_table.custom_route_tables
+  ]
 }
 
-# Transit Gateway Connect Attachments
-resource "aws_ec2_transit_gateway_connect" "main" {
-  count = var.create_tgw ? length(var.connect_attachments) : 0
+# Route Table Propagations
+resource "aws_ec2_transit_gateway_route_table_propagation" "route_propagations" {
+  for_each = {
+    for k, v in var.vpc_attachments : k => v
+    if contains(keys(var.route_table_associations), k)
+  }
 
-  transit_gateway_id      = aws_ec2_transit_gateway.main[0].id
-  transport_attachment_id = var.connect_attachments[count.index].transport_attachment_id
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.vpc_attachments[each.key].id
+  transit_gateway_route_table_id = var.route_table_associations[each.key] == "main" ? aws_ec2_transit_gateway.main.propagation_default_route_table_id : aws_ec2_transit_gateway_route_table.custom_route_tables[var.route_table_associations[each.key]].id
 
-  tags = merge(
-    {
-      Name = var.connect_attachments[count.index].name
-    },
-    var.connect_attachments[count.index].tags,
-    var.tags
-  )
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.vpc_attachments,
+    aws_ec2_transit_gateway_route_table.custom_route_tables
+  ]
 }
 
-# Transit Gateway Peering Attachments
-resource "aws_ec2_transit_gateway_peering_attachment" "main" {
-  count = var.create_tgw ? length(var.peering_attachments) : 0
+# VPC Routes
+resource "aws_ec2_transit_gateway_route" "vpc_routes" {
+  for_each = {
+    for k, v in var.routes : k => v
+    if can(regex("^vpc_", k))
+  }
 
-  peer_region             = var.peering_attachments[count.index].peer_region
-  peer_transit_gateway_id = var.peering_attachments[count.index].peer_transit_gateway_id
-  transit_gateway_id      = aws_ec2_transit_gateway.main[0].id
+  destination_cidr_block         = each.value.destination_cidr_block
+  transit_gateway_attachment_id  = each.value.transit_gateway_attachment_id
+  transit_gateway_route_table_id = each.value.transit_gateway_route_table_id
 
-  tags = merge(
-    {
-      Name = var.peering_attachments[count.index].name
-    },
-    var.peering_attachments[count.index].tags,
-    var.tags
-  )
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.vpc_attachments,
+    aws_ec2_transit_gateway_route_table.custom_route_tables
+  ]
 }
 
-# Transit Gateway Routes
-resource "aws_ec2_transit_gateway_route" "main" {
-  count = var.create_tgw ? length(var.routes) : 0
+# Peering Attachments
+resource "aws_ec2_transit_gateway_peering_attachment" "peering" {
+  for_each = var.peering_attachments
 
-  destination_cidr_block         = var.routes[count.index].destination_cidr_block
-  transit_gateway_attachment_id  = var.routes[count.index].transit_gateway_attachment_id
-  transit_gateway_route_table_id = var.routes[count.index].transit_gateway_route_table_id
+  peer_region             = each.value.peer_region
+  peer_transit_gateway_id = each.value.peer_transit_gateway_id
+  transit_gateway_id      = aws_ec2_transit_gateway.main.id
+
+  peer_account_id = each.value.peer_account_id
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-peering-${each.key}"
+  }, each.value.tags)
+
+  depends_on = [aws_ec2_transit_gateway.main]
 }
 
-# Transit Gateway Route Table Associations
-resource "aws_ec2_transit_gateway_route_table_association" "main" {
-  count = var.create_tgw ? length(var.route_table_associations) : 0
+# Peering Routes
+resource "aws_ec2_transit_gateway_route" "peering_routes" {
+  for_each = {
+    for k, v in var.routes : k => v
+    if can(regex("^peering_", k))
+  }
 
-  transit_gateway_attachment_id  = var.route_table_associations[count.index].transit_gateway_attachment_id
-  transit_gateway_route_table_id = var.route_table_associations[count.index].transit_gateway_route_table_id
+  destination_cidr_block         = each.value.destination_cidr_block
+  transit_gateway_attachment_id  = each.value.transit_gateway_attachment_id
+  transit_gateway_route_table_id = each.value.transit_gateway_route_table_id
+
+  depends_on = [
+    aws_ec2_transit_gateway_peering_attachment.peering,
+    aws_ec2_transit_gateway_route_table.custom_route_tables
+  ]
 }
 
-# Transit Gateway Route Table Propagations
-resource "aws_ec2_transit_gateway_route_table_propagation" "main" {
-  count = var.create_tgw ? length(var.route_table_propagations) : 0
+# VPC Flow Logs (Optional)
+resource "aws_flow_log" "transit_gateway_flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
 
-  transit_gateway_attachment_id  = var.route_table_propagations[count.index].transit_gateway_attachment_id
-  transit_gateway_route_table_id = var.route_table_propagations[count.index].transit_gateway_route_table_id
+  log_destination_type = "cloud-watch-logs"
+  log_group_name       = "/aws/transit-gateway/${var.name}"
+  traffic_type         = "ALL"
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-flow-logs"
+  })
+
+  depends_on = [aws_ec2_transit_gateway.main]
 }
 
-# Transit Gateway Multicast Domain
-resource "aws_ec2_transit_gateway_multicast_domain" "main" {
-  count = var.create_tgw && var.create_multicast_domain ? 1 : 0
+# CloudWatch Log Group for Flow Logs
+resource "aws_cloudwatch_log_group" "transit_gateway_flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
 
-  transit_gateway_id = aws_ec2_transit_gateway.main[0].id
-  static_sources_support = var.multicast_domain_static_sources_support
+  name              = "/aws/transit-gateway/${var.name}"
+  retention_in_days = var.flow_log_retention_in_days
 
-  tags = merge(
-    {
-      Name = "${var.tgw_name}-multicast-domain"
-    },
-    var.tags
-  )
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-flow-logs"
+  })
 }
 
-# Transit Gateway Multicast Domain Association
-resource "aws_ec2_transit_gateway_multicast_domain_association" "main" {
-  count = var.create_tgw && var.create_multicast_domain ? length(var.multicast_domain_associations) : 0
+# IAM Role for Flow Logs
+resource "aws_iam_role" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
 
-  transit_gateway_attachment_id   = var.multicast_domain_associations[count.index].transit_gateway_attachment_id
-  transit_gateway_multicast_domain_id = aws_ec2_transit_gateway_multicast_domain.main[0].id
-  subnet_id                       = var.multicast_domain_associations[count.index].subnet_id
+  name = "${var.name}-flow-logs-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
 }
 
-# Transit Gateway Multicast Group Member
-resource "aws_ec2_transit_gateway_multicast_group_member" "main" {
-  count = var.create_tgw && var.create_multicast_domain ? length(var.multicast_group_members) : 0
+# IAM Policy for Flow Logs
+resource "aws_iam_role_policy" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
 
-  group_ip_address                    = var.multicast_group_members[count.index].group_ip_address
-  network_interface_id                = var.multicast_group_members[count.index].network_interface_id
-  transit_gateway_multicast_domain_id = aws_ec2_transit_gateway_multicast_domain.main[0].id
-}
+  name = "${var.name}-flow-logs-policy"
+  role = aws_iam_role.flow_logs[0].id
 
-# Transit Gateway Multicast Group Source
-resource "aws_ec2_transit_gateway_multicast_group_source" "main" {
-  count = var.create_tgw && var.create_multicast_domain ? length(var.multicast_group_sources) : 0
-
-  group_ip_address                    = var.multicast_group_sources[count.index].group_ip_address
-  network_interface_id                = var.multicast_group_sources[count.index].network_interface_id
-  transit_gateway_multicast_domain_id = aws_ec2_transit_gateway_multicast_domain.main[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 } 

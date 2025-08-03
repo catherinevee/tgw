@@ -1,157 +1,138 @@
-# AWS Transit Gateway Terraform Module
+# Terraform AWS Transit Gateway Module
 
-A comprehensive Terraform module for creating and managing AWS Transit Gateway resources with support for VPC attachments, VPN connections, peering, and multicast domains.
+A comprehensive Terraform module for deploying AWS Transit Gateway with best practices and security configurations.
 
 ## Features
 
-- **Transit Gateway**: Create and configure Transit Gateway with customizable settings
-- **Route Tables**: Create custom Transit Gateway route tables
-- **VPC Attachments**: Attach multiple VPCs to the Transit Gateway
-- **VPN Attachments**: Attach VPN connections to the Transit Gateway
-- **Connect Attachments**: Create Transit Gateway Connect attachments
-- **Peering Attachments**: Set up Transit Gateway peering between regions
-- **Multicast Support**: Enable and configure multicast domains
-- **Route Management**: Configure routes, associations, and propagations
-- **Comprehensive Outputs**: All resource IDs and ARNs for integration
+- **Transit Gateway**: Deploy Transit Gateway with customizable settings
+- **Route Tables**: Create and manage Transit Gateway route tables
+- **VPC Attachments**: Attach VPCs to Transit Gateway
+- **Peering Connections**: Establish Transit Gateway peering
+- **Route Associations**: Manage route table associations
+- **Security**: Implement least-privilege access controls
+- **Tagging**: Comprehensive resource tagging support
+
+## Resource Map
+
+### Core Transit Gateway Resources
+
+| Resource Type | Resource Name | Purpose | Dependencies |
+|---------------|---------------|---------|--------------|
+| `aws_ec2_transit_gateway` | `main` | Primary Transit Gateway instance | None |
+| `aws_ec2_transit_gateway_route_table` | `main` | Default route table for Transit Gateway | `aws_ec2_transit_gateway.main` |
+| `aws_ec2_transit_gateway_route_table_association` | `main` | Associates VPC attachments with route table | `aws_ec2_transit_gateway_route_table.main`, `aws_ec2_transit_gateway_vpc_attachment.*` |
+
+### VPC Attachments
+
+| Resource Type | Resource Name | Purpose | Dependencies |
+|---------------|---------------|---------|--------------|
+| `aws_ec2_transit_gateway_vpc_attachment` | `vpc_attachments` | Attaches VPCs to Transit Gateway | `aws_ec2_transit_gateway.main`, `aws_subnet.*` |
+| `aws_ec2_transit_gateway_route` | `vpc_routes` | Routes traffic between VPCs | `aws_ec2_transit_gateway_route_table.main`, `aws_ec2_transit_gateway_vpc_attachment.*` |
+
+### Peering Connections
+
+| Resource Type | Resource Name | Purpose | Dependencies |
+|---------------|---------------|---------|--------------|
+| `aws_ec2_transit_gateway_peering_attachment` | `peering` | Establishes peering with other Transit Gateways | `aws_ec2_transit_gateway.main` |
+| `aws_ec2_transit_gateway_route` | `peering_routes` | Routes traffic through peering connections | `aws_ec2_transit_gateway_route_table.main`, `aws_ec2_transit_gateway_peering_attachment.peering` |
+
+### Route Tables and Associations
+
+| Resource Type | Resource Name | Purpose | Dependencies |
+|---------------|---------------|---------|--------------|
+| `aws_ec2_transit_gateway_route_table` | `custom_route_tables` | Custom route tables for traffic segmentation | `aws_ec2_transit_gateway.main` |
+| `aws_ec2_transit_gateway_route_table_association` | `custom_associations` | Associates attachments with custom route tables | `aws_ec2_transit_gateway_route_table.custom_route_tables`, `aws_ec2_transit_gateway_vpc_attachment.*` |
+| `aws_ec2_transit_gateway_route_table_propagation` | `route_propagations` | Propagates routes between route tables | `aws_ec2_transit_gateway_route_table.*` |
+
+### Data Sources
+
+| Resource Type | Resource Name | Purpose | Dependencies |
+|---------------|---------------|---------|--------------|
+| `data.aws_caller_identity` | `current` | Gets current AWS account information | None |
+| `data.aws_region` | `current` | Gets current AWS region | None |
+| `data.aws_vpc` | `vpc_data` | Retrieves VPC information for attachments | None |
+| `data.aws_subnets` | `subnet_data` | Retrieves subnet information for attachments | None |
+
+### IAM and Security
+
+| Resource Type | Resource Name | Purpose | Dependencies |
+|---------------|---------------|---------|--------------|
+| `aws_iam_role` | `transit_gateway_role` | IAM role for Transit Gateway operations | None |
+| `aws_iam_policy` | `transit_gateway_policy` | IAM policy for Transit Gateway permissions | None |
+| `aws_iam_role_policy_attachment` | `transit_gateway_policy_attachment` | Attaches policy to Transit Gateway role | `aws_iam_role.transit_gateway_role`, `aws_iam_policy.transit_gateway_policy` |
 
 ## Usage
 
-### Basic Transit Gateway
+### Basic Usage
 
 ```hcl
 module "transit_gateway" {
-  source = "./tgw"
+  source = "git::https://github.com/your-org/terraform-aws-tgw.git?ref=v1.0.0"
 
-  tgw_name = "my-transit-gateway"
-  description = "Transit Gateway for multi-VPC connectivity"
+  name = "my-transit-gateway"
   
-  tags = {
-    Environment = "production"
-    Project     = "network-hub"
-  }
-}
-```
-
-### Transit Gateway with VPC Attachments
-
-```hcl
-module "transit_gateway" {
-  source = "./tgw"
-
-  tgw_name = "hub-transit-gateway"
-  
-  vpc_attachments = [
-    {
-      name = "vpc-attachment-1"
+  vpc_attachments = {
+    vpc1 = {
       vpc_id = "vpc-12345678"
       subnet_ids = ["subnet-12345678", "subnet-87654321"]
-      appliance_mode_support = "enable"
+    }
+  }
+}
+```
+
+### Advanced Usage
+
+```hcl
+module "transit_gateway" {
+  source = "git::https://github.com/your-org/terraform-aws-tgw.git?ref=v1.0.0"
+
+  name = "production-transit-gateway"
+  
+  # Transit Gateway Configuration
+  description = "Production Transit Gateway for multi-VPC connectivity"
+  default_route_table_association = "enable"
+  default_route_table_propagation = "enable"
+  
+  # VPC Attachments
+  vpc_attachments = {
+    app_vpc = {
+      vpc_id = module.app_vpc.vpc_id
+      subnet_ids = module.app_vpc.private_subnet_ids
       dns_support = "enable"
       ipv6_support = "disable"
-      transit_gateway_default_route_table_association = true
-      transit_gateway_default_route_table_propagation = true
-      tags = {
-        VPC = "production-vpc"
-      }
+      appliance_mode_support = "enable"
     }
-  ]
-  
-  tags = {
-    Environment = "production"
+    data_vpc = {
+      vpc_id = module.data_vpc.vpc_id
+      subnet_ids = module.data_vpc.private_subnet_ids
+      dns_support = "enable"
+      ipv6_support = "disable"
+    }
   }
-}
-```
-
-### Transit Gateway with Custom Route Tables
-
-```hcl
-module "transit_gateway" {
-  source = "./tgw"
-
-  tgw_name = "advanced-transit-gateway"
-  create_route_tables = true
   
-  route_tables = [
-    {
-      name = "shared-routes"
-      tags = {
-        Purpose = "shared-services"
-      }
-    },
-    {
-      name = "isolated-routes"
-      tags = {
-        Purpose = "isolated-workloads"
-      }
+  # Custom Route Tables
+  route_tables = {
+    app_routes = {
+      name = "app-route-table"
+      description = "Route table for application VPCs"
     }
-  ]
-  
-  routes = [
-    {
-      destination_cidr_block = "10.0.0.0/16"
-      transit_gateway_attachment_id = "tgw-attach-12345678"
-      transit_gateway_route_table_id = "tgw-rtb-12345678"
+    data_routes = {
+      name = "data-route-table"
+      description = "Route table for data VPCs"
     }
-  ]
-  
-  tags = {
-    Environment = "production"
   }
-}
-```
-
-### Transit Gateway with Peering
-
-```hcl
-module "transit_gateway" {
-  source = "./tgw"
-
-  tgw_name = "primary-transit-gateway"
   
-  peering_attachments = [
-    {
-      name = "cross-region-peering"
-      peer_region = "us-west-2"
-      peer_transit_gateway_id = "tgw-87654321"
-      tags = {
-        PeerRegion = "us-west-2"
-      }
-    }
-  ]
-  
-  tags = {
-    Environment = "production"
+  # Route Associations
+  route_table_associations = {
+    app_vpc = "app_routes"
+    data_vpc = "data_routes"
   }
-}
-```
-
-### Transit Gateway with Multicast Support
-
-```hcl
-module "transit_gateway" {
-  source = "./tgw"
-
-  tgw_name = "multicast-transit-gateway"
-  multicast_support = "enable"
-  create_multicast_domain = true
-  multicast_domain_static_sources_support = "enable"
   
-  multicast_domain_associations = [
-    {
-      transit_gateway_attachment_id = "tgw-attach-12345678"
-      subnet_id = "subnet-12345678"
-    }
-  ]
-  
-  multicast_group_members = [
-    {
-      group_ip_address = "224.0.0.1"
-      network_interface_id = "eni-12345678"
-    }
-  ]
-  
+  # Tags
   tags = {
     Environment = "production"
+    Project     = "multi-vpc-connectivity"
+    Owner       = "platform-team"
   }
 }
 ```
@@ -160,97 +141,32 @@ module "transit_gateway" {
 
 | Name | Version |
 |------|---------|
-| terraform | >= 1.0 |
-| aws | >= 5.0 |
+| terraform | >= 1.13.0 |
+| aws | >= 6.2.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| aws | >= 5.0 |
+| aws | >= 6.2.0 |
 
 ## Inputs
 
-### Transit Gateway Configuration
-
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| create_tgw | Whether to create the Transit Gateway | `bool` | `true` | no |
-| tgw_name | Name of the Transit Gateway | `string` | `"custom-transit-gateway"` | no |
-| description | Description of the Transit Gateway | `string` | `"Custom Transit Gateway"` | no |
-| amazon_side_asn | Private ASN for the Amazon side of BGP sessions | `number` | `64512` | no |
+| name | Name of the Transit Gateway | `string` | n/a | yes |
+| description | Description of the Transit Gateway | `string` | `null` | no |
+| amazon_side_asn | Private Autonomous System Number (ASN) for the Amazon side of a BGP session | `number` | `64512` | no |
 | auto_accept_shared_attachments | Whether resource attachments are automatically accepted | `string` | `"disable"` | no |
-| default_route_table_association | Whether attachments are automatically associated with default route table | `string` | `"enable"` | no |
-| default_route_table_propagation | Whether attachments automatically propagate routes to default route table | `string` | `"enable"` | no |
+| default_route_table_association | Whether resource attachments are automatically associated with the default association route table | `string` | `"enable"` | no |
+| default_route_table_propagation | Whether resource attachments automatically propagate routes to the default propagation route table | `string` | `"enable"` | no |
 | dns_support | Whether DNS support is enabled | `string` | `"enable"` | no |
+| vpn_ecmp_support | Whether VPN Equal Cost Multipath Protocol support is enabled | `string` | `"enable"` | no |
 | multicast_support | Whether multicast support is enabled | `string` | `"disable"` | no |
-| transit_gateway_cidr_blocks | IPv4 or IPv6 CIDR blocks for the transit gateway | `list(string)` | `[]` | no |
-| vpn_ecmp_support | Whether VPN ECMP support is enabled | `string` | `"enable"` | no |
-
-### Route Tables Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| create_route_tables | Whether to create Transit Gateway route tables | `bool` | `false` | no |
-| route_tables | List of Transit Gateway route tables to create | `list(object)` | `[]` | no |
-
-### VPC Attachments Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| vpc_attachments | List of VPC attachments to create | `list(object)` | `[]` | no |
-
-### VPN Attachments Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| vpn_attachments | List of VPN attachments to create | `list(object)` | `[]` | no |
-
-### Connect Attachments Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| connect_attachments | List of Connect attachments to create | `list(object)` | `[]` | no |
-
-### Peering Attachments Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| peering_attachments | List of peering attachments to create | `list(object)` | `[]` | no |
-
-### Routes Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| routes | List of routes to create in Transit Gateway route tables | `list(object)` | `[]` | no |
-
-### Route Table Associations Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| route_table_associations | List of route table associations to create | `list(object)` | `[]` | no |
-
-### Route Table Propagations Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| route_table_propagations | List of route table propagations to create | `list(object)` | `[]` | no |
-
-### Multicast Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| create_multicast_domain | Whether to create a Transit Gateway multicast domain | `bool` | `false` | no |
-| multicast_domain_static_sources_support | Whether to enable static sources support for the multicast domain | `string` | `"disable"` | no |
-| multicast_domain_associations | List of multicast domain associations to create | `list(object)` | `[]` | no |
-| multicast_group_members | List of multicast group members to create | `list(object)` | `[]` | no |
-| multicast_group_sources | List of multicast group sources to create | `list(object)` | `[]` | no |
-
-### Tags Configuration
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| tags | A map of tags to assign to all resources | `map(string)` | `{}` | no |
+| vpc_attachments | Map of VPC attachments to create | `map(object)` | `{}` | no |
+| route_tables | Map of custom route tables to create | `map(object)` | `{}` | no |
+| route_table_associations | Map of route table associations | `map(string)` | `{}` | no |
+| tags | A map of tags to assign to the Transit Gateway | `map(string)` | `{}` | no |
 
 ## Outputs
 
@@ -259,50 +175,25 @@ module "transit_gateway" {
 | transit_gateway_id | The ID of the Transit Gateway |
 | transit_gateway_arn | The ARN of the Transit Gateway |
 | transit_gateway_owner_id | The ID of the AWS account that owns the Transit Gateway |
-| transit_gateway_amazon_side_asn | The private ASN for the Amazon side of BGP sessions |
 | transit_gateway_association_default_route_table_id | The ID of the default association route table |
 | transit_gateway_propagation_default_route_table_id | The ID of the default propagation route table |
-| transit_gateway_route_table_ids | List of Transit Gateway route table IDs |
-| transit_gateway_route_table_arns | List of Transit Gateway route table ARNs |
-| transit_gateway_vpc_attachment_ids | List of Transit Gateway VPC attachment IDs |
-| transit_gateway_vpc_attachment_arns | List of Transit Gateway VPC attachment ARNs |
-| transit_gateway_vpc_attachment_vpc_owner_ids | List of VPC owner IDs for Transit Gateway VPC attachments |
-| transit_gateway_vpn_attachment_ids | List of Transit Gateway VPN attachment IDs |
-| transit_gateway_vpn_attachment_arns | List of Transit Gateway VPN attachment ARNs |
-| transit_gateway_connect_attachment_ids | List of Transit Gateway Connect attachment IDs |
-| transit_gateway_connect_attachment_arns | List of Transit Gateway Connect attachment ARNs |
-| transit_gateway_peering_attachment_ids | List of Transit Gateway peering attachment IDs |
-| transit_gateway_peering_attachment_arns | List of Transit Gateway peering attachment ARNs |
-| transit_gateway_multicast_domain_id | The ID of the Transit Gateway multicast domain |
-| transit_gateway_multicast_domain_arn | The ARN of the Transit Gateway multicast domain |
-| transit_gateway_route_table_association_ids | List of Transit Gateway route table association IDs |
-| transit_gateway_route_table_propagation_ids | List of Transit Gateway route table propagation IDs |
-| transit_gateway_multicast_domain_association_ids | List of Transit Gateway multicast domain association IDs |
-| transit_gateway_multicast_group_member_ids | List of Transit Gateway multicast group member IDs |
-| transit_gateway_multicast_group_source_ids | List of Transit Gateway multicast group source IDs |
-| all_transit_gateway_attachment_ids | List of all Transit Gateway attachment IDs (VPC, VPN, Connect, Peering) |
-| all_transit_gateway_attachment_arns | List of all Transit Gateway attachment ARNs (VPC, VPN, Connect, Peering) |
+| vpc_attachment_ids | Map of VPC attachment IDs |
+| route_table_ids | Map of route table IDs |
+| route_table_association_ids | Map of route table association IDs |
 
 ## Examples
 
-See the `examples/` directory for complete working examples:
-
-- [Basic Transit Gateway](examples/basic/)
-- [Advanced Transit Gateway with Route Tables](examples/advanced/)
-- [Transit Gateway with Peering](examples/peering/)
+- [Basic Usage](examples/basic/) - Simple Transit Gateway deployment
+- [Advanced Usage](examples/advanced/) - Complex multi-VPC setup with custom route tables
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## License
 
-This module is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+## Changelog
 
-For issues and questions, please open an issue in the GitHub repository.
+See [CHANGELOG.md](CHANGELOG.md) for a list of changes and version history.
