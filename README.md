@@ -1,14 +1,6 @@
 # Terraform AWS Transit Gateway Module
 
-A comprehensive Terraform module for deploying AWS Transit Gateway with best practices and security configurations.
-
-## Terraform Version
-
-This module requires Terraform version >= 1.13.0 and AWS provider version >= 6.2.0.
-
-## Terragrunt Support
-
-This module is compatible with Terragrunt version 0.84.0. See the `examples/terragrunt/` directory for configuration examples.
+Terraform module for deploying AWS Transit Gateway with enterprise networking patterns and security controls.
 
 ## Requirements
 
@@ -17,120 +9,34 @@ This module is compatible with Terragrunt version 0.84.0. See the `examples/terr
 | terraform | >= 1.13.0 |
 | aws | >= 6.2.0 |
 
-## Providers
-
-| Name | Version |
-|------|---------|
-| aws | >= 6.2.0 |
-
 ## Features
 
-- **Transit Gateway**: Deploy Transit Gateway with customizable settings
-- **Route Tables**: Create and manage Transit Gateway route tables
-- **VPC Attachments**: Attach VPCs to Transit Gateway
-- **Peering Connections**: Establish Transit Gateway peering
-- **Route Associations**: Manage route table associations
-- **Security**: Implement least-privilege access controls, VPC Flow Logs, and network segmentation
-- **Tagging**: Comprehensive resource tagging support
+- Transit Gateway deployment with customizable ASN and routing
+- VPC attachments with subnet placement and DNS support
+- Route table management for traffic segmentation
+- Peering connections between Transit Gateways
+- Security controls with VPC Flow Logs and network policies
+- Resource tagging for cost allocation and compliance
 
-## Resource Map
+## Resource Architecture
 
-### Core Transit Gateway Resources
+### Core Resources
+- `aws_ec2_transit_gateway` - Main Transit Gateway instance
+- `aws_ec2_transit_gateway_route_table` - Default and custom route tables
+- `aws_ec2_transit_gateway_vpc_attachment` - VPC connectivity
 
-| Resource Type | Resource Name | Purpose | Dependencies |
-|---------------|---------------|---------|--------------|
-| `aws_ec2_transit_gateway` | `main` | Primary Transit Gateway instance | None |
-| `aws_ec2_transit_gateway_route_table` | `main` | Default route table for Transit Gateway | `aws_ec2_transit_gateway.main` |
-| `aws_ec2_transit_gateway_route_table_association` | `main` | Associates VPC attachments with route table | `aws_ec2_transit_gateway_route_table.main`, `aws_ec2_transit_gateway_vpc_attachment.*` |
+### Routing and Traffic Control
+- `aws_ec2_transit_gateway_route` - Inter-VPC routing rules
+- `aws_ec2_transit_gateway_route_table_association` - Route table assignments
+- `aws_ec2_transit_gateway_route_table_propagation` - Route propagation between tables
 
-### VPC Attachments
-
-| Resource Type | Resource Name | Purpose | Dependencies |
-|---------------|---------------|---------|--------------|
-| `aws_ec2_transit_gateway_vpc_attachment` | `vpc_attachments` | Attaches VPCs to Transit Gateway | `aws_ec2_transit_gateway.main`, `aws_subnet.*` |
-| `aws_ec2_transit_gateway_route` | `vpc_routes` | Routes traffic between VPCs | `aws_ec2_transit_gateway_route_table.main`, `aws_ec2_transit_gateway_vpc_attachment.*` |
-
-### Peering Connections
-
-| Resource Type | Resource Name | Purpose | Dependencies |
-|---------------|---------------|---------|--------------|
-| `aws_ec2_transit_gateway_peering_attachment` | `peering` | Establishes peering with other Transit Gateways | `aws_ec2_transit_gateway.main` |
-| `aws_ec2_transit_gateway_route` | `peering_routes` | Routes traffic through peering connections | `aws_ec2_transit_gateway_route_table.main`, `aws_ec2_transit_gateway_peering_attachment.peering` |
-
-### Route Tables and Associations
-
-| Resource Type | Resource Name | Purpose | Dependencies |
-|---------------|---------------|---------|--------------|
-| `aws_ec2_transit_gateway_route_table` | `custom_route_tables` | Custom route tables for traffic segmentation | `aws_ec2_transit_gateway.main` |
-| `aws_ec2_transit_gateway_route_table_association` | `custom_associations` | Associates attachments with custom route tables | `aws_ec2_transit_gateway_route_table.custom_route_tables`, `aws_ec2_transit_gateway_vpc_attachment.*` |
-| `aws_ec2_transit_gateway_route_table_propagation` | `route_propagations` | Propagates routes between route tables | `aws_ec2_transit_gateway_route_table.*` |
-
-### Data Sources
-
-| Resource Type | Resource Name | Purpose | Dependencies |
-|---------------|---------------|---------|--------------|
-| `data.aws_caller_identity` | `current` | Gets current AWS account information | None |
-| `data.aws_region` | `current` | Gets current AWS region | None |
-| `data.aws_vpc` | `vpc_data` | Retrieves VPC information for attachments | None |
-| `data.aws_subnets` | `subnet_data` | Retrieves subnet information for attachments | None |
-
-### IAM and Security
-
-| Resource Type | Resource Name | Purpose | Dependencies |
-|---------------|---------------|---------|--------------|
-| `aws_iam_role` | `transit_gateway_role` | IAM role for Transit Gateway operations | None |
-| `aws_iam_policy` | `transit_gateway_policy` | IAM policy for Transit Gateway permissions | None |
-| `aws_iam_role_policy_attachment` | `transit_gateway_policy_attachment` | Attaches policy to Transit Gateway role | `aws_iam_role.transit_gateway_role`, `aws_iam_policy.transit_gateway_policy` |
-
-## Inputs
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| name | Name of the Transit Gateway. Must be unique within the AWS account. | `string` | n/a | yes |
-| description | Description of the Transit Gateway. | `string` | `null` | no |
-| amazon_side_asn | Private Autonomous System Number (ASN) for the Amazon side of a BGP session. | `number` | `64512` | no |
-| auto_accept_shared_attachments | Whether resource attachments are automatically accepted. | `string` | `"disable"` | no |
-| default_route_table_association | Whether resource attachments are automatically associated with the default association route table. | `string` | `"enable"` | no |
-| default_route_table_propagation | Whether resource attachments automatically propagate routes to the default propagation route table. | `string` | `"enable"` | no |
-| dns_support | Whether DNS support is enabled. | `string` | `"enable"` | no |
-| vpn_ecmp_support | Whether VPN Equal Cost Multipath Protocol support is enabled. | `string` | `"enable"` | no |
-| multicast_support | Whether multicast support is enabled. | `string` | `"disable"` | no |
-| vpc_attachments | Map of VPC attachments to create. | `map(object)` | `{}` | no |
-| route_tables | Map of custom route tables to create. | `map(object)` | `{}` | no |
-| route_table_associations | Map of route table associations. | `map(string)` | `{}` | no |
-| routes | Map of routes to create in Transit Gateway route tables. | `map(object)` | `{}` | no |
-| peering_attachments | Map of Transit Gateway peering attachments to create. | `map(object)` | `{}` | no |
-| tags | A map of tags to assign to the Transit Gateway and all created resources. | `map(string)` | `{}` | no |
-| enable_flow_logs | Whether to enable VPC Flow Logs for Transit Gateway attachments. | `bool` | `false` | no |
-| flow_log_retention_in_days | The number of days to retain VPC Flow Logs. | `number` | `30` | no |
-
-## Outputs
-
-| Name | Description |
-|------|-------------|
-| transit_gateway_id | The ID of the Transit Gateway. |
-| transit_gateway_arn | The ARN of the Transit Gateway. |
-| transit_gateway_owner_id | The ID of the AWS account that owns the Transit Gateway. |
-| transit_gateway_association_default_route_table_id | The ID of the default association route table. |
-| transit_gateway_propagation_default_route_table_id | The ID of the default propagation route table. |
-| transit_gateway_amazon_side_asn | The private ASN for the Amazon side of BGP sessions. |
-| vpc_attachment_ids | Map of VPC attachment IDs. |
-| vpc_attachment_arns | Map of VPC attachment ARNs. |
-| route_table_ids | Map of route table IDs. |
-| route_table_arns | Map of route table ARNs. |
-| peering_attachment_ids | Map of Transit Gateway peering attachment IDs. |
-| peering_attachment_arns | Map of Transit Gateway peering attachment ARNs. |
-| all_transit_gateway_attachment_ids | Map of all Transit Gateway attachment IDs (VPC, Peering). |
-| all_transit_gateway_attachment_arns | Map of all Transit Gateway attachment ARNs (VPC, Peering). |
-| transit_gateway_tags | A map of tags assigned to the Transit Gateway. |
-| route_count | The number of routes in the Transit Gateway route tables. |
-| vpc_attachment_count | The number of VPC attachments. |
-| route_table_count | The number of custom route tables. |
-| peering_attachment_count | The number of peering attachments. |
+### Peering and External Connectivity
+- `aws_ec2_transit_gateway_peering_attachment` - Cross-account or cross-region peering
+- `aws_ec2_transit_gateway_route` - Peering route configuration
 
 ## Usage
 
-### Basic Usage
+### Basic Transit Gateway
 
 ```hcl
 module "transit_gateway" {
@@ -147,7 +53,7 @@ module "transit_gateway" {
 }
 ```
 
-### Advanced Usage
+### Multi-VPC with Traffic Segmentation
 
 ```hcl
 module "transit_gateway" {
@@ -155,29 +61,26 @@ module "transit_gateway" {
 
   name = "production-transit-gateway"
   
-  # Transit Gateway Configuration
+  # Transit Gateway settings
   description = "Production Transit Gateway for multi-VPC connectivity"
-  default_route_table_association = "enable"
-  default_route_table_propagation = "enable"
+  amazon_side_asn = 64512
   
-  # VPC Attachments
+  # VPC attachments
   vpc_attachments = {
     app_vpc = {
       vpc_id = module.app_vpc.vpc_id
       subnet_ids = module.app_vpc.private_subnet_ids
       dns_support = "enable"
-      ipv6_support = "disable"
       appliance_mode_support = "enable"
     }
     data_vpc = {
       vpc_id = module.data_vpc.vpc_id
       subnet_ids = module.data_vpc.private_subnet_ids
       dns_support = "enable"
-      ipv6_support = "disable"
     }
   }
   
-  # Custom Route Tables
+  # Custom route tables for traffic isolation
   route_tables = {
     app_routes = {
       name = "app-route-table"
@@ -189,13 +92,16 @@ module "transit_gateway" {
     }
   }
   
-  # Route Associations
+  # Route table associations
   route_table_associations = {
     app_vpc = "app_routes"
     data_vpc = "data_routes"
   }
   
-  # Tags
+  # Security and monitoring
+  enable_flow_logs = true
+  flow_log_retention_in_days = 30
+  
   tags = {
     Environment = "production"
     Project     = "multi-vpc-connectivity"
@@ -204,63 +110,65 @@ module "transit_gateway" {
 }
 ```
 
-## Requirements
-
-| Name | Version |
-|------|---------|
-| terraform | >= 1.13.0 |
-| aws | >= 6.2.0 |
-
-## Providers
-
-| Name | Version |
-|------|---------|
-| aws | >= 6.2.0 |
-
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| name | Name of the Transit Gateway | `string` | n/a | yes |
-| description | Description of the Transit Gateway | `string` | `null` | no |
-| amazon_side_asn | Private Autonomous System Number (ASN) for the Amazon side of a BGP session | `number` | `64512` | no |
-| auto_accept_shared_attachments | Whether resource attachments are automatically accepted | `string` | `"disable"` | no |
-| default_route_table_association | Whether resource attachments are automatically associated with the default association route table | `string` | `"enable"` | no |
-| default_route_table_propagation | Whether resource attachments automatically propagate routes to the default propagation route table | `string` | `"enable"` | no |
-| dns_support | Whether DNS support is enabled | `string` | `"enable"` | no |
-| vpn_ecmp_support | Whether VPN Equal Cost Multipath Protocol support is enabled | `string` | `"enable"` | no |
-| multicast_support | Whether multicast support is enabled | `string` | `"disable"` | no |
-| vpc_attachments | Map of VPC attachments to create | `map(object)` | `{}` | no |
-| route_tables | Map of custom route tables to create | `map(object)` | `{}` | no |
-| route_table_associations | Map of route table associations | `map(string)` | `{}` | no |
-| tags | A map of tags to assign to the Transit Gateway | `map(string)` | `{}` | no |
+| name | Transit Gateway name | `string` | n/a | yes |
+| description | Transit Gateway description | `string` | `null` | no |
+| amazon_side_asn | Private ASN for BGP sessions | `number` | `64512` | no |
+| auto_accept_shared_attachments | Auto-accept shared attachments | `string` | `"disable"` | no |
+| default_route_table_association | Auto-associate with default route table | `string` | `"enable"` | no |
+| default_route_table_propagation | Auto-propagate to default route table | `string` | `"enable"` | no |
+| dns_support | Enable DNS support | `string` | `"enable"` | no |
+| vpn_ecmp_support | Enable VPN ECMP support | `string` | `"enable"` | no |
+| multicast_support | Enable multicast support | `string` | `"disable"` | no |
+| vpc_attachments | VPC attachment configurations | `map(object)` | `{}` | no |
+| route_tables | Custom route table configurations | `map(object)` | `{}` | no |
+| route_table_associations | Route table association mappings | `map(string)` | `{}` | no |
+| routes | Route configurations | `map(object)` | `{}` | no |
+| peering_attachments | Peering attachment configurations | `map(object)` | `{}` | no |
+| tags | Resource tags | `map(string)` | `{}` | no |
+| enable_flow_logs | Enable VPC Flow Logs | `bool` | `false` | no |
+| flow_log_retention_in_days | Flow log retention period | `number` | `30` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| transit_gateway_id | The ID of the Transit Gateway |
-| transit_gateway_arn | The ARN of the Transit Gateway |
-| transit_gateway_owner_id | The ID of the AWS account that owns the Transit Gateway |
-| transit_gateway_association_default_route_table_id | The ID of the default association route table |
-| transit_gateway_propagation_default_route_table_id | The ID of the default propagation route table |
-| vpc_attachment_ids | Map of VPC attachment IDs |
-| route_table_ids | Map of route table IDs |
-| route_table_association_ids | Map of route table association IDs |
+| transit_gateway_id | Transit Gateway ID |
+| transit_gateway_arn | Transit Gateway ARN |
+| transit_gateway_owner_id | Transit Gateway owner account ID |
+| transit_gateway_association_default_route_table_id | Default association route table ID |
+| transit_gateway_propagation_default_route_table_id | Default propagation route table ID |
+| transit_gateway_amazon_side_asn | Amazon side ASN |
+| vpc_attachment_ids | VPC attachment IDs |
+| vpc_attachment_arns | VPC attachment ARNs |
+| route_table_ids | Route table IDs |
+| route_table_arns | Route table ARNs |
+| peering_attachment_ids | Peering attachment IDs |
+| peering_attachment_arns | Peering attachment ARNs |
+| all_transit_gateway_attachment_ids | All attachment IDs |
+| all_transit_gateway_attachment_arns | All attachment ARNs |
+| transit_gateway_tags | Transit Gateway tags |
+| route_count | Number of routes |
+| vpc_attachment_count | Number of VPC attachments |
+| route_table_count | Number of custom route tables |
+| peering_attachment_count | Number of peering attachments |
 
 ## Examples
 
 - [Basic Usage](examples/basic/) - Simple Transit Gateway deployment
-- [Advanced Usage](examples/advanced/) - Complex multi-VPC setup with custom route tables
+- [Advanced Usage](examples/advanced/) - Multi-VPC setup with custom routing
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for a list of changes and version history.
+See [CHANGELOG.md](CHANGELOG.md) for version history.

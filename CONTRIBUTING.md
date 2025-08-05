@@ -1,47 +1,34 @@
 # Contributing to Terraform AWS Transit Gateway Module
 
-We love your input! We want to make contributing to this Terraform module as easy and transparent as possible, whether it's:
+We welcome contributions to this Terraform module. This document outlines the process for contributing.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
+## Development Process
 
-## We Develop with Github
-We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
+We use GitHub for code hosting, issue tracking, and pull requests. All code changes happen through Pull Requests.
 
-## We Use [Github Flow](https://guides.github.com/introduction/flow/index.html)
-We use GitHub Flow. So all code changes happen through Pull Requests.
+## Pull Request Process
 
-## Pull Requests
-1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes.
-5. Make sure your code lints.
-6. Issue that pull request!
-
-## Any contributions you make will be under the MIT Software License
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
-
-## Report bugs using Github's [issue tracker](https://github.com/your-org/terraform-aws-tgw/issues)
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/your-org/terraform-aws-tgw/issues/new); it's that easy!
-
-## Write bug reports with detail, background, and sample code
-
-**Great Bug Reports** tend to have:
-
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
+1. Fork the repository and create your branch from `main`
+2. Add tests for any new code
+3. Update documentation for API changes
+4. Ensure the test suite passes
+5. Make sure your code follows linting standards
+6. Submit the pull request
 
 ## License
-By contributing, you agree that your contributions will be licensed under its MIT License.
+
+Contributions are licensed under the MIT License. When you submit code changes, your submissions are understood to be under the same MIT License that covers the project.
+
+## Bug Reports
+
+Report bugs using GitHub's issue tracker. Include:
+
+- A clear summary and background
+- Specific steps to reproduce
+- Expected behavior
+- Actual behavior
+- Additional notes or attempted solutions
 
 ## References
-This document was adapted from the open-source contribution guidelines for [Facebook's Draft](https://github.com/facebook/draft-js/blob/a9316a723f9e918afde44dea68b5f9f39b7d9b00/CONTRIBUTING.md). 
+
+This document was adapted from open-source contribution guidelines. 

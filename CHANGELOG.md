@@ -12,8 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transit Gateway resource creation
 - VPC attachment support
 - Route table management
-- Comprehensive resource map in README
-- Terraform Registry compliance improvements
+- Resource map in README
+- Terraform Registry compliance
 
 ### Changed
 - Updated to Terraform 1.13.0
