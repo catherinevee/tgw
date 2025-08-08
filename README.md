@@ -1,174 +1,234 @@
-# Terraform AWS Transit Gateway Module
+# Custom Blast Radius
 
-Terraform module for deploying AWS Transit Gateway with enterprise networking patterns and security controls.
+Interactive visualizations of Terraform dependency graphs using d3.js
 
-## Requirements
+## Overview
 
-| Name | Version |
-|------|---------|
-| terraform | >= 1.13.0 |
-| aws | >= 6.2.0 |
+This is a custom implementation of [Blast Radius](https://github.com/28mm/blast-radius) for creating interactive visualizations of Terraform dependency graphs. The application provides:
+
+- **Interactive Visualizations**: Zoom, pan, search, and filter dependency graphs
+- **Multiple Output Formats**: HTML, SVG, PNG, and JSON
+- **Terraform Examples**: Real-world Terraform configurations with valid HCL syntax
+- **Web Interface**: Modern, responsive web interface
+- **Docker Support**: Containerized deployment
 
 ## Features
 
-- Transit Gateway deployment with customizable ASN and routing
-- VPC attachments with subnet placement and DNS support
-- Route table management for traffic segmentation
-- Peering connections between Transit Gateways
-- Security controls with VPC Flow Logs and network policies
-- Resource tagging for cost allocation and compliance
+- 🎯 **Interactive Dependency Graphs**: Visualize Terraform resource relationships
+- 🔍 **Search & Filter**: Find specific resources and filter by type
+- 📊 **Multiple Formats**: Export as HTML, SVG, PNG, or JSON
+- 🐳 **Docker Support**: Run without local dependencies
+- 🌐 **Web Interface**: Modern, responsive UI
+- 📝 **Real Examples**: Working Terraform configurations included
 
-## Resource Architecture
+## Prerequisites
 
-### Core Resources
-- `aws_ec2_transit_gateway` - Main Transit Gateway instance
-- `aws_ec2_transit_gateway_route_table` - Default and custom route tables
-- `aws_ec2_transit_gateway_vpc_attachment` - VPC connectivity
+- **Python 3.7+**
+- **Graphviz** (for graph layout)
+- **Docker** (optional, for containerized deployment)
 
-### Routing and Traffic Control
-- `aws_ec2_transit_gateway_route` - Inter-VPC routing rules
-- `aws_ec2_transit_gateway_route_table_association` - Route table assignments
-- `aws_ec2_transit_gateway_route_table_propagation` - Route propagation between tables
+### Installing Graphviz
 
-### Peering and External Connectivity
-- `aws_ec2_transit_gateway_peering_attachment` - Cross-account or cross-region peering
-- `aws_ec2_transit_gateway_route` - Peering route configuration
+**macOS:**
+```bash
+brew install graphviz
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install graphviz
+```
+
+**Windows:**
+Download from [Graphviz website](https://graphviz.org/download/)
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run with Examples
+
+```bash
+# Generate interactive visualization
+python blast_radius.py --serve examples/aws-vpc
+
+# Export static files
+python blast_radius.py --export examples/aws-vpc --output vpc-diagram
+```
+
+### 3. Docker (No Local Dependencies)
+
+```bash
+# Build and run
+docker build -t custom-blast-radius .
+docker run -p 5000:5000 -v $(pwd)/examples:/data custom-blast-radius --serve /data/aws-vpc
+```
+
+## Terraform Examples
+
+The application includes several real-world Terraform examples:
+
+### 1. AWS VPC with Subnets
+**Location**: `examples/aws-vpc/`
+
+A complete VPC setup with:
+- VPC with CIDR block
+- Public and private subnets across multiple AZs
+- Internet Gateway
+- NAT Gateway
+- Route tables
+- Security groups
+
+### 2. Multi-Tier Application
+**Location**: `examples/multi-tier-app/`
+
+A three-tier application architecture:
+- Load balancer tier
+- Application tier (EC2 instances)
+- Database tier (RDS)
+- Auto Scaling groups
+- CloudWatch monitoring
+
+### 3. Kubernetes Infrastructure
+**Location**: `examples/kubernetes/`
+
+EKS cluster setup with:
+- EKS cluster
+- Node groups
+- IAM roles and policies
+- VPC CNI
+- Load balancer controller
+
+### 4. Serverless Architecture
+**Location**: `examples/serverless/`
+
+Serverless components:
+- Lambda functions
+- API Gateway
+- DynamoDB tables
+- S3 buckets
+- CloudWatch events
 
 ## Usage
 
-### Basic Transit Gateway
+### Command Line Interface
 
-```hcl
-module "transit_gateway" {
-  source = "git::https://github.com/your-org/terraform-aws-tgw.git?ref=v1.0.0"
+```bash
+# Basic usage
+python blast_radius.py [OPTIONS] PATH
 
-  name = "my-transit-gateway"
-  
-  vpc_attachments = {
-    vpc1 = {
-      vpc_id = "vpc-12345678"
-      subnet_ids = ["subnet-12345678", "subnet-87654321"]
-    }
-  }
-}
+# Options
+--serve          Start web server
+--export         Export static files
+--format FORMAT  Output format (html, svg, png, json)
+--output PATH    Output directory
+--port PORT      Web server port (default: 5000)
+--host HOST      Web server host (default: 127.0.0.1)
 ```
 
-### Multi-VPC with Traffic Segmentation
+### Examples
 
-```hcl
-module "transit_gateway" {
-  source = "git::https://github.com/your-org/terraform-aws-tgw.git?ref=v1.0.0"
+```bash
+# Serve interactive visualization
+python blast_radius.py --serve examples/aws-vpc
 
-  name = "production-transit-gateway"
-  
-  # Transit Gateway settings
-  description = "Production Transit Gateway for multi-VPC connectivity"
-  amazon_side_asn = 64512
-  
-  # VPC attachments
-  vpc_attachments = {
-    app_vpc = {
-      vpc_id = module.app_vpc.vpc_id
-      subnet_ids = module.app_vpc.private_subnet_ids
-      dns_support = "enable"
-      appliance_mode_support = "enable"
-    }
-    data_vpc = {
-      vpc_id = module.data_vpc.vpc_id
-      subnet_ids = module.data_vpc.private_subnet_ids
-      dns_support = "enable"
-    }
-  }
-  
-  # Custom route tables for traffic isolation
-  route_tables = {
-    app_routes = {
-      name = "app-route-table"
-      description = "Route table for application VPCs"
-    }
-    data_routes = {
-      name = "data-route-table"
-      description = "Route table for data VPCs"
-    }
-  }
-  
-  # Route table associations
-  route_table_associations = {
-    app_vpc = "app_routes"
-    data_vpc = "data_routes"
-  }
-  
-  # Security and monitoring
-  enable_flow_logs = true
-  flow_log_retention_in_days = 30
-  
-  tags = {
-    Environment = "production"
-    Project     = "multi-vpc-connectivity"
-    Owner       = "platform-team"
-  }
-}
+# Export HTML visualization
+python blast_radius.py --export examples/multi-tier-app --format html
+
+# Export all formats
+python blast_radius.py --export examples/kubernetes --format all
+
+# Custom port
+python blast_radius.py --serve examples/serverless --port 8080
 ```
 
-## Inputs
+### Web Interface
 
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| name | Transit Gateway name | `string` | n/a | yes |
-| description | Transit Gateway description | `string` | `null` | no |
-| amazon_side_asn | Private ASN for BGP sessions | `number` | `64512` | no |
-| auto_accept_shared_attachments | Auto-accept shared attachments | `string` | `"disable"` | no |
-| default_route_table_association | Auto-associate with default route table | `string` | `"enable"` | no |
-| default_route_table_propagation | Auto-propagate to default route table | `string` | `"enable"` | no |
-| dns_support | Enable DNS support | `string` | `"enable"` | no |
-| vpn_ecmp_support | Enable VPN ECMP support | `string` | `"enable"` | no |
-| multicast_support | Enable multicast support | `string` | `"disable"` | no |
-| vpc_attachments | VPC attachment configurations | `map(object)` | `{}` | no |
-| route_tables | Custom route table configurations | `map(object)` | `{}` | no |
-| route_table_associations | Route table association mappings | `map(string)` | `{}` | no |
-| routes | Route configurations | `map(object)` | `{}` | no |
-| peering_attachments | Peering attachment configurations | `map(object)` | `{}` | no |
-| tags | Resource tags | `map(string)` | `{}` | no |
-| enable_flow_logs | Enable VPC Flow Logs | `bool` | `false` | no |
-| flow_log_retention_in_days | Flow log retention period | `number` | `30` | no |
+Once the server is running, open your browser to `http://127.0.0.1:5000` to access the interactive visualization.
 
-## Outputs
+**Features:**
+- **Zoom & Pan**: Mouse wheel to zoom, drag to pan
+- **Search**: Type to search for resources
+- **Filter**: Filter by resource type
+- **Details**: Click resources for detailed information
+- **Export**: Download as SVG or PNG
 
-| Name | Description |
-|------|-------------|
-| transit_gateway_id | Transit Gateway ID |
-| transit_gateway_arn | Transit Gateway ARN |
-| transit_gateway_owner_id | Transit Gateway owner account ID |
-| transit_gateway_association_default_route_table_id | Default association route table ID |
-| transit_gateway_propagation_default_route_table_id | Default propagation route table ID |
-| transit_gateway_amazon_side_asn | Amazon side ASN |
-| vpc_attachment_ids | VPC attachment IDs |
-| vpc_attachment_arns | VPC attachment ARNs |
-| route_table_ids | Route table IDs |
-| route_table_arns | Route table ARNs |
-| peering_attachment_ids | Peering attachment IDs |
-| peering_attachment_arns | Peering attachment ARNs |
-| all_transit_gateway_attachment_ids | All attachment IDs |
-| all_transit_gateway_attachment_arns | All attachment ARNs |
-| transit_gateway_tags | Transit Gateway tags |
-| route_count | Number of routes |
-| vpc_attachment_count | Number of VPC attachments |
-| route_table_count | Number of custom route tables |
-| peering_attachment_count | Number of peering attachments |
+## Project Structure
 
-## Examples
+```
+blast-radius/
+├── blast_radius.py          # Main application
+├── requirements.txt         # Python dependencies
+├── Dockerfile              # Docker configuration
+├── docker-compose.yml      # Docker Compose setup
+├── examples/               # Terraform examples
+│   ├── aws-vpc/           # VPC example
+│   ├── multi-tier-app/    # Multi-tier application
+│   ├── kubernetes/        # EKS cluster
+│   └── serverless/        # Serverless architecture
+├── static/                # Web assets
+│   ├── css/              # Stylesheets
+│   ├── js/               # JavaScript
+│   └── images/           # Images
+├── templates/             # HTML templates
+└── tests/                # Test files
+```
 
-- [Basic Usage](examples/basic/) - Simple Transit Gateway deployment
-- [Advanced Usage](examples/advanced/) - Multi-VPC setup with custom routing
+## Development
+
+### Running Tests
+
+```bash
+python -m pytest tests/
+```
+
+### Adding New Examples
+
+1. Create a new directory in `examples/`
+2. Add valid Terraform files (`.tf`)
+3. Run `terraform init` in the example directory
+4. Test with: `python blast_radius.py --serve examples/your-example`
+
+### Customizing Styles
+
+Modify files in `static/css/` and `static/js/` to customize the visualization appearance and behavior.
+
+## API Reference
+
+### blast_radius.py
+
+Main application class with methods:
+
+- `parse_terraform(path)`: Parse Terraform configuration
+- `generate_graph(data)`: Generate dependency graph
+- `export_html(graph, output_path)`: Export HTML visualization
+- `export_svg(graph, output_path)`: Export SVG file
+- `export_png(graph, output_path)`: Export PNG file
+- `serve(path, host, port)`: Start web server
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+1. Fork the repository
+2. Create a feature branch
+3. Add your changes
+4. Include tests
+5. Submit a pull request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License - see LICENSE file for details
 
-## Changelog
+## Acknowledgments
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+Based on the original [Blast Radius](https://github.com/28mm/blast-radius) project by 28mm.
+
+## Support
+
+For issues and questions:
+- Create an issue on GitHub
+- Check the documentation in the `docs/` directory
+- Review the examples for usage patterns
